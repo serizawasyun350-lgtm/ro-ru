@@ -27,7 +27,7 @@ const client = new Client({
   ]
 });
 
-// ボタンのコンポーネント配列を再構築するヘルパー関数（最大20〜25個対応）
+// ボタンのコンポーネント配列を再構築するヘルパー関数
 function buildActionRows(buttonsData) {
   const rows = [];
   for (let i = 0; i < buttonsData.length; i += 5) {
@@ -53,28 +53,33 @@ async function registerCommands() {
     .setDescription('ロール付与パネルを作成します（最大10個のロールを同時設定可能）')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
     .addStringOption(option =>
-      option.setName('title').setDescription('パネルのタイトル').setRequired(true))
-    .addStringOption(option =>
-      option.setName('color')
-        .setDescription('パネルの色（プリセットまたはカラーコード #5865F2 等）')
-        .setRequired(false)
-        .addChoices(
-          { name: 'ブルー (Blue)', value: '#5865F2' },
-          { name: 'グリーン (Green)', value: '#57F287' },
-          { name: 'イエロー (Yellow)', value: '#FEE75C' },
-          { name: 'レッド (Red)', value: '#ED4245' },
-          { name: 'パープル (Purple)', value: '#9B59B6' }
-        ))
-    .addStringOption(option =>
-      option.setName('description').setDescription('パネルの説明文').setRequired(false));
+      option.setName('title').setDescription('パネルのタイトル').setRequired(true));
 
-  // role1〜10、label1〜10をループで追加
+  // 1. 必須であるロール1〜10を先にすべて追加
   for (let i = 1; i <= 10; i++) {
     commandBuilder.addRoleOption(option =>
       option.setName(`role${i}`).setDescription(`${i}つ目のロール${i === 1 ? '（必須）' : '（任意）'}`).setRequired(i === 1));
+  }
+
+  // 2. 任意のオプション（ラベル1〜10、カラー、説明文）を後ろに配置
+  for (let i = 1; i <= 10; i++) {
     commandBuilder.addStringOption(option =>
       option.setName(`label${i}`).setDescription(`${i}つ目のボタンの表示名（省略時はロール名）`).setRequired(false));
   }
+
+  commandBuilder.addStringOption(option =>
+    option.setName('color')
+      .setDescription('パネルの色（プリセットまたはカラーコード #5865F2 等）')
+      .setRequired(false)
+      .addChoices(
+        { name: 'ブルー (Blue)', value: '#5865F2' },
+        { name: 'グリーン (Green)', value: '#57F287' },
+        { name: 'イエロー (Yellow)', value: '#FEE75C' },
+        { name: 'レッド (Red)', value: '#ED4245' },
+        { name: 'パープル (Purple)', value: '#9B59B6' }
+      ))
+    .addStringOption(option =>
+      option.setName('description').setDescription('パネルの説明文').setRequired(false));
 
   const editCommand = new SlashCommandBuilder()
     .setName('role_edit')
@@ -112,16 +117,13 @@ async function registerCommands() {
 
 client.once(Events.ClientReady, async c => {
   console.log(`Logged in as ${c.user.tag}`);
-  // ボット起動時にコマンドを自動登録
   await registerCommands();
 });
 
 client.on(Events.InteractionCreate, async interaction => {
-  // 1. スラッシュコマンドの処理
   if (interaction.isChatInputCommand()) {
     const { commandName } = interaction;
 
-    // --- /role_panel ---
     if (commandName === 'role_panel') {
       const title = interaction.options.getString('title');
       const description = interaction.options.getString('description') || '下のボタンを押してロールを取得・解除できます。';
@@ -129,7 +131,6 @@ client.on(Events.InteractionCreate, async interaction => {
 
       const buttonsData = [];
 
-      // role1〜10をループで自動取得
       for (let i = 1; i <= 10; i++) {
         const role = interaction.options.getRole(`role${i}`);
         if (role) {
@@ -149,7 +150,6 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.channel.send({ embeds: [embed], components: rows });
     }
 
-    // --- /role_edit ---
     if (commandName === 'role_edit') {
       const messageId = interaction.options.getString('message_id');
       const action = interaction.options.getString('action');
@@ -162,7 +162,6 @@ client.on(Events.InteractionCreate, async interaction => {
           return interaction.reply({ content: 'このBotが作成したパネルではありません。', ephemeral: true });
         }
 
-        // 既存のボタン情報を抽出
         let currentButtons = [];
         for (const row of targetMessage.components) {
           for (const comp of row.components) {
@@ -205,7 +204,6 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   }
 
-  // 2. ボタンクリック時のロール付与・解除処理
   if (interaction.isButton()) {
     if (!interaction.customId.startsWith('role_')) return;
 
@@ -213,7 +211,7 @@ client.on(Events.InteractionCreate, async interaction => {
     const role = interaction.guild.roles.cache.get(roleId);
 
     if (!role) {
-      return interaction.reply({ content: 'thisロールは既に削除されています。', ephemeral: true });
+      return interaction.reply({ content: 'このロールは既に削除されています。', ephemeral: true });
     }
 
     const member = interaction.member;
